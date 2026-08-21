@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>株式受渡代金計算ツール | 日興証券手数料自動計算</title>
+<style>
+  :root{
+    --page:#EFEEE6; --card:#fff; --green:#2D6A4F; --greenDeep:#235341;
+    --red:#E0383B; --redDeep:#E63946; --maroon:#9B1C1C; --border:#E7E5DB;
+    --sub:#9A988E; --beBg:#EAF4EE; --beBorder:#CADFD0; --beText:#1B7A4B;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  body{margin:0;background:var(--page);color:#1c1c1a;
+    font-family:'Hiragino Kaku Gothic ProN','Yu Gothic',sans-serif;padding:16px;}
+  .wrap{max-width:460px;margin:0 auto;}
+  .back{display:inline-block;font-size:14px;font-weight:700;color:var(--greenDeep);
+    text-decoration:none;padding:8px 0;margin-bottom:4px;}
+  .badge{display:inline-block;background:var(--greenDeep);color:#fff;font-size:13px;font-weight:700;
+    padding:5px 14px;border-radius:8px;margin-bottom:10px;}
+  h1{font-size:28px;font-weight:800;margin:4px 0 6px;color:var(--greenDeep);letter-spacing:.5px;}
+  .lead{font-size:14px;color:var(--sub);margin:0 0 16px;}
+  .card{background:var(--card);border-radius:18px;padding:20px;box-shadow:0 1px 3px rgba(0,0,0,.04);}
+  .label{font-size:16px;font-weight:800;color:var(--green);margin-bottom:10px;}
+  .label span{margin-right:6px;}
+  .toggle{display:flex;gap:12px;margin-bottom:20px;}
+  .tbtn{flex:1;padding:16px 0;border-radius:14px;font-size:20px;font-weight:800;cursor:pointer;
+    background:#fff;color:#8a8880;border:1px solid var(--border);transition:all .12s;}
+  .tbtn.buy.on{background:var(--redDeep);color:#fff;border-color:var(--redDeep);box-shadow:0 0 0 4px #E6394622;}
+  .tbtn.sell.on{background:var(--green);color:#fff;border-color:var(--green);box-shadow:0 0 0 4px #2D6A4F22;}
+  .field{position:relative;border:1px solid var(--border);border-radius:14px;background:#fff;margin-bottom:18px;}
+  .field input{width:100%;border:none;outline:none;background:transparent;font-size:30px;font-weight:700;
+    text-align:right;padding:16px 56px 16px 16px;color:#1c1c1a;}
+  .field .unit{position:absolute;right:18px;top:50%;transform:translateY(-50%);font-size:15px;color:var(--sub);font-weight:600;}
+  input::-webkit-outer-spin-button,input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
+  input[type=number]{-moz-appearance:textfield;}
+  .dashed{border-top:1px dashed var(--border);margin:22px 0 16px;}
+  .row{display:flex;justify-content:space-between;align-items:flex-start;}
+  .row .l{font-size:17px;font-weight:700;}
+  .row .s{font-size:12.5px;color:var(--sub);margin-top:2px;}
+  .row .v{font-size:24px;font-weight:800;white-space:nowrap;}
+  .fee-l{font-size:17px;font-weight:700;}
+  .fee-tier{font-size:12px;color:var(--sub);}
+  .fee-v{font-size:22px;font-weight:800;white-space:nowrap;}
+  .note{font-size:12.5px;color:var(--sub);margin:6px 0 0;}
+  .hr{border-top:2px solid #2a2a26;margin:16px 0 14px;}
+  .settle{display:flex;justify-content:space-between;align-items:baseline;gap:8px;}
+  .settle .t{font-size:18px;font-weight:800;}
+  .settle .t small{font-size:14px;font-weight:700;color:var(--sub);}
+  .settle .amt{font-size:34px;font-weight:900;line-height:1.1;}
+  .be{background:var(--beBg);border:1px solid var(--beBorder);border-radius:18px;padding:20px;margin-top:16px;}
+  .be-h{font-size:15px;font-weight:800;color:var(--beText);margin-bottom:4px;}
+  .be-sub{font-size:12.5px;color:#5b6b60;margin:0 0 12px;}
+  .be-main{display:flex;align-items:baseline;justify-content:space-between;gap:8px;}
+  .be-main .lab{font-size:14px;font-weight:700;color:#4a5a50;}
+  .be-main .price{font-size:32px;font-weight:900;color:var(--beText);line-height:1.1;}
+  .pills{display:flex;gap:10px;margin-top:14px;}
+  .pill{flex:1;background:#fff;border:1px solid var(--beBorder);border-radius:12px;padding:10px 12px;text-align:center;}
+  .pill .pl{font-size:11.5px;color:#6a7a70;font-weight:600;}
+  .pill .pv{font-size:18px;font-weight:800;color:var(--beText);margin-top:2px;}
+  .tablecard{margin-top:16px;}
+  .tabtn{background:none;border:none;padding:0;cursor:pointer;font-size:16px;font-weight:800;color:var(--green);
+    display:flex;align-items:center;gap:6px;}
+  .tabtn .arw{transition:transform .15s;transform:rotate(-90deg);}
+  .tabtn.open .arw{transform:rotate(0);}
+  .tbl{margin-top:14px;display:none;}
+  .tbl.open{display:block;}
+  .trow{display:flex;justify-content:space-between;padding:12px 10px;border-top:1px solid var(--border);font-weight:500;font-size:16px;}
+  .trow:first-child{border-top:none;}
+  .trow.act{background:#DDEEDF;border-radius:8px;font-weight:700;}
+  .foot{font-size:12.5px;color:var(--sub);line-height:1.7;margin:16px 4px 24px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="./index.html">&lsaquo; 株価ボードに戻る</a>
+  <div class="badge">総合コース・支店取引</div>
+  <h1>株式受渡代金 計算ツール</h1>
+  <p class="lead">約定代金と手数料(税込)から受渡代金を自動計算します</p>
+
+  <div class="card">
+    <div class="label"><span>①</span>売り買いの別</div>
+    <div class="toggle">
+      <button class="tbtn buy on" id="btnBuy">買い</button>
+      <button class="tbtn sell" id="btnSell">売り</button>
+    </div>
+
+    <div class="label"><span>②</span>株数</div>
+    <div class="field"><input id="shares" type="number" inputmode="decimal" value="500"><span class="unit">株</span></div>
+
+    <div class="label"><span>③</span>株価</div>
+    <div class="field"><input id="price" type="number" inputmode="decimal" value="10000"><span class="unit">円</span></div>
+
+    <div class="dashed"></div>
+
+    <div class="row">
+      <div><div class="l">約定代金</div><div class="s" id="notionalSub"></div></div>
+      <div class="v" id="notional"></div>
+    </div>
+
+    <div class="row" style="margin-top:14px;">
+      <div style="flex:1;padding-right:10px;">
+        <span class="fee-l">手数料 </span><span class="fee-tier" id="feeTier"></span>
+      </div>
+      <div class="fee-v" id="feeVal"></div>
+    </div>
+    <p class="note" id="feeNote"></p>
+
+    <div class="hr"></div>
+
+    <div class="settle">
+      <span class="t" id="settleLabel">お支払い金額<br><small>(受渡代金)</small></span>
+      <span class="amt" id="settleVal"></span>
+    </div>
+  </div>
+
+  <div class="be" id="beCard">
+    <div class="be-h">▲ 売却時の損益分岐株価</div>
+    <p class="be-sub">買い・売りの手数料(税込)を両方引いても損をしない売却株価</p>
+    <div class="be-main">
+      <span class="lab">この株価以上で売ればプラス</span>
+      <span class="price" id="bePrice"></span>
+    </div>
+    <div class="pills">
+      <div class="pill"><div class="pl">必要上昇率</div><div class="pv" id="bePct"></div></div>
+      <div class="pill"><div class="pl">上昇幅</div><div class="pv" id="beUp"></div></div>
+    </div>
+  </div>
+
+  <div class="card tablecard">
+    <button class="tabtn" id="tableBtn"><span class="arw">▼</span>手数料テーブルを見る(総合コース・支店/税込)</button>
+    <div class="tbl" id="tbl"></div>
+  </div>
+
+  <p class="foot">※ 手数料は円未満切捨てで計算しています。実際のお取引では税制・端数処理等により金額が異なる場合があります。本ツールは概算用です。</p>
+</div>
+
+<script>
+const TIERS = [
+  {limit:1e6,        rate:.01265, fixed:0,     min:5500, label:"〜100万円",   text:"1.265%(最低5,500円)"},
+  {limit:2e6,        rate:.00990, fixed:2750,            label:"〜200万円",   text:"0.990%+2,750円"},
+  {limit:3e6,        rate:.00880, fixed:4950,            label:"〜300万円",   text:"0.880%+4,950円"},
+  {limit:4e6,        rate:.00825, fixed:6600,            label:"〜400万円",   text:"0.825%+6,600円"},
+  {limit:5e6,        rate:.00770, fixed:8800,            label:"〜500万円",   text:"0.770%+8,800円"},
+  {limit:1e7,        rate:.00660, fixed:14300,           label:"〜1,000万円", text:"0.660%+14,300円"},
+  {limit:2e7,        rate:.00605, fixed:19800,           label:"〜2,000万円", text:"0.605%+19,800円"},
+  {limit:3e7,        rate:.00550, fixed:30800,           label:"〜3,000万円", text:"0.550%+30,800円"},
+  {limit:5e7,        rate:.00330, fixed:96800,           label:"〜5,000万円", text:"0.330%+96,800円"},
+  {limit:1e8,        flat:275000,                        label:"〜1億円",     text:"275,000円"},
+  {limit:5e8,        flat:330000,                        label:"〜5億円",     text:"330,000円"},
+  {limit:1e9,        flat:385000,                        label:"〜10億円",    text:"385,000円"},
+  {limit:Infinity,   flat:440000,                        label:"10億円超",    text:"440,000円"},
+];
+
+function calcCommission(n){
+  for(const t of TIERS){
+    if(n<=t.limit){
+      if(t.flat!=null) return {commission:t.flat,tier:t};
+      let c=Math.floor(n*t.rate+(t.fixed||0));
+      if(t.min!=null) c=Math.max(c,t.min);
+      return {commission:c,tier:t};
+    }
+  }
+  const last=TIERS[TIERS.length-1];
+  return {commission:last.flat,tier:last};
+}
+
+function calcBreakeven(shares,buyPrice){
+  if(!shares||!buyPrice) return null;
+  const buyNotional=shares*buyPrice;
+  const cost=buyNotional+calcCommission(buyNotional).commission;
+  const net=p=>{const v=shares*p;return v-calcCommission(v).commission;};
+  let lo=buyPrice,hi=buyPrice*1.1,g=0;
+  while(net(hi)<cost&&g<200){hi*=1.5;g++;}
+  for(let i=0;i<80;i++){const m=(lo+hi)/2;if(net(m)>=cost)hi=m;else lo=m;}
+  const price=Math.ceil(hi*10)/10;
+  return {price,pctUp:(price/buyPrice-1)*100,yenUp:price-buyPrice};
+}
+
+const yen=n=>"¥"+Math.round(n).toLocaleString("ja-JP");
+const fmtPrice=n=>Number.isInteger(n)?n.toLocaleString("ja-JP")
+  :n.toLocaleString("ja-JP",{minimumFractionDigits:1,maximumFractionDigits:1});
+
+let side="buy";
+const $=id=>document.getElementById(id);
+
+function render(){
+  const sh=parseFloat($("shares").value)||0;
+  const pr=parseFloat($("price").value)||0;
+  const notional=sh*pr;
+  const {commission,tier}=calcCommission(notional);
+  const isBuy=side==="buy";
+  const settlement=isBuy?notional+commission:notional-commission;
+
+  $("notionalSub").textContent=sh.toLocaleString("ja-JP")+"株 × "+pr.toLocaleString("ja-JP")+"円";
+  $("notional").textContent=yen(notional);
+  $("feeTier").textContent=tier.label+"："+tier.text;
+  $("feeVal").textContent=(isBuy?"＋ ":"− ")+yen(commission);
+  $("feeVal").style.color=isBuy?"var(--red)":"var(--green)";
+  $("feeNote").textContent=isBuy?"買いは約定代金に手数料を加えます":"売りは約定代金から手数料を差し引きます";
+  $("settleLabel").innerHTML=(isBuy?"お支払い金額":"お受取金額")+"<br><small>(受渡代金)</small>";
+  $("settleVal").textContent=yen(settlement);
+  $("settleVal").style.color=isBuy?"var(--maroon)":"var(--green)";
+
+  const be=isBuy?calcBreakeven(sh,pr):null;
+  if(be){
+    $("beCard").style.display="block";
+    $("bePrice").textContent="¥"+fmtPrice(be.price);
+    $("bePct").textContent="+"+be.pctUp.toFixed(2)+"%";
+    $("beUp").textContent="+¥"+fmtPrice(Math.ceil(be.yenUp*10)/10);
+  }else{
+    $("beCard").style.display="none";
+  }
+
+  document.querySelectorAll(".trow").forEach((el,i)=>{
+    el.classList.toggle("act", notional>0 && TIERS[i].label===tier.label);
+  });
+}
+
+$("tbl").innerHTML=TIERS.map(t=>
+  `<div class="trow"><span>${t.label}</span><span>${t.text}</span></div>`).join("");
+
+$("btnBuy").onclick=()=>{side="buy";$("btnBuy").classList.add("on");$("btnSell").classList.remove("on");render();};
+$("btnSell").onclick=()=>{side="sell";$("btnSell").classList.add("on");$("btnBuy").classList.remove("on");render();};
+$("tableBtn").onclick=()=>{$("tableBtn").classList.toggle("open");$("tbl").classList.toggle("open");};
+$("shares").addEventListener("input",render);
+$("price").addEventListener("input",render);
+render();
+
+// 株価ボードから銘柄の株価を引き継いで開けるようにする（?price=1234&shares=100）
+(function(){
+  const q=new URLSearchParams(location.search);
+  const p=parseFloat(q.get("price")), s=parseFloat(q.get("shares"));
+  if(isFinite(p)&&p>0) $("price").value=p;
+  if(isFinite(s)&&s>0) $("shares").value=s;
+  if(isFinite(p)||isFinite(s)) render();
+})();
+</script>
+</body>
+</html>

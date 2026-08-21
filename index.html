@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="ja" data-mode="day">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="株価">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="apple-touch-icon" href="./icon.png">
+<link rel="manifest" href="./manifest.webmanifest">
+<title>世界の株価</title>
+<style>
+/* 方針：装飾なし。太い数字・高コントラスト・広い行間だけで作る。
+   端末標準のゴシックのみ。明朝・縦長書体・グラデーション・角丸は使わない。 */
+:root{
+  --bg:#fff; --bg2:#f2f2f2; --fg:#111; --sub:#6d6d6d; --faint:#9b9b9b;
+  --rule:#e4e4e4; --rule2:#d0d0d0;
+  --up:#d81e1e; --dn:#1560cc; --flat:#8a8a8a;
+  --font:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Hiragino Kaku Gothic ProN",
+         "Yu Gothic","Noto Sans JP",sans-serif;
+}
+html[data-mode="night"]{
+  --bg:#000; --bg2:#141414; --fg:#f2f2f2; --sub:#9a9a9a; --faint:#6f6f6f;
+  --rule:#222; --rule2:#333; --up:#ff5148; --dn:#4d9dff;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--font);
+  -webkit-text-size-adjust:100%}
+body{padding-bottom:env(safe-area-inset-bottom)}
+header{padding-top:env(safe-area-inset-top)}
+.wrap{max-width:820px;margin:0 auto}
+.num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1}
+
+/* 上部バー */
+header{position:sticky;top:0;z-index:9;background:var(--bg);border-bottom:1px solid var(--rule)}
+.bar{display:flex;align-items:center;gap:10px;padding:12px 14px 10px}
+.brand{font-size:17px;font-weight:700;letter-spacing:.02em}
+.time{font-size:13px;color:var(--sub)}
+.tools{margin-left:auto;display:flex;gap:4px}
+button{font-family:inherit;font-size:13px;color:var(--sub);background:none;border:0;
+  padding:8px 10px;cursor:pointer;min-height:38px}
+button:active{opacity:.5}
+button:focus-visible{outline:2px solid var(--fg);outline-offset:-2px}
+button[aria-pressed="true"]{color:var(--fg);font-weight:700}
+
+/* 見出し株価 */
+.strip{display:flex;overflow-x:auto;scrollbar-width:none;
+  border-bottom:1px solid var(--rule);background:var(--bg)}
+.strip::-webkit-scrollbar{display:none}
+.chip{flex:0 0 auto;padding:10px 16px;min-width:124px;cursor:pointer;
+  border-right:1px solid var(--rule)}
+.chip .n{font-size:12px;color:var(--sub);white-space:nowrap;margin-bottom:3px}
+.chip .p{font-size:19px;font-weight:700;line-height:1.1}
+.chip .d{font-size:12px;font-weight:600;margin-top:2px}
+
+/* 部門 */
+nav{display:flex;overflow-x:auto;scrollbar-width:none;border-bottom:1px solid var(--rule)}
+nav::-webkit-scrollbar{display:none}
+nav button{font-size:15px;padding:12px 16px;white-space:nowrap;
+  border-bottom:3px solid transparent;min-height:46px}
+nav button[aria-selected="true"]{color:var(--fg);font-weight:700;border-bottom-color:var(--fg)}
+
+/* 並べ替え */
+.sortbar{display:flex;align-items:center;gap:2px;padding:4px 8px;
+  border-bottom:1px solid var(--rule);font-size:12px;color:var(--faint)}
+.sortbar span{padding-left:6px}
+.sortbar button{font-size:12px;padding:6px 8px;min-height:32px}
+.sortbar .toollink{margin-left:auto;font-size:13px;font-weight:600;color:var(--fg);
+  text-decoration:none;padding:8px 4px 8px 12px;white-space:nowrap}
+
+/* 一覧 */
+.row{display:flex;align-items:center;gap:12px;padding:13px 14px;
+  border-bottom:1px solid var(--rule);cursor:pointer}
+.row:active{background:var(--bg2)}
+.row[aria-current="true"]{background:var(--bg2)}
+.rname{flex:1 1 auto;min-width:0}
+.rname b{display:block;font-size:16px;font-weight:600;line-height:1.3}
+.rname i{display:block;font-style:normal;font-size:11.5px;color:var(--faint);margin-top:2px}
+.rspark canvas{display:block;width:56px;height:26px}
+.rval{flex:0 0 auto;text-align:right;min-width:104px}
+.rval .p{font-size:19px;font-weight:700;line-height:1.15}
+.rval .d{font-size:13px;font-weight:600;margin-top:3px}
+.hl{display:none}
+@media(min-width:620px){
+  .hl{display:block;flex:0 0 auto;text-align:right;min-width:92px;font-size:13px;color:var(--sub)}
+  .hl u{text-decoration:none;display:block}
+}
+
+/* 個別 */
+.detail{border-top:1px solid var(--rule2);margin-top:10px;padding:18px 14px 8px}
+.dhead{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.dname{font-size:17px;font-weight:700}
+.dprice{font-size:36px;font-weight:700;line-height:1}
+.ddiff{font-size:15px;font-weight:600}
+.dmeta{margin-left:auto;font-size:11.5px;color:var(--faint);text-align:right}
+#big{width:100%;height:210px;display:block;margin-top:12px}
+.calclink{display:block;margin-top:12px;font-size:14px;font-weight:600;color:var(--fg);
+  text-decoration:none;border:1px solid var(--rule2);padding:12px 14px;text-align:center}
+.calclink:active{background:var(--bg2)}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--rule);
+  border:1px solid var(--rule);margin-top:14px}
+.stats div{background:var(--bg);padding:9px 10px}
+.stats span{display:block;font-size:11px;color:var(--faint);margin-bottom:3px}
+.stats b{font-size:16px;font-weight:600}
+@media(min-width:620px){.stats{grid-template-columns:repeat(6,1fr)}}
+
+.note{padding:10px 14px;font-size:12.5px;line-height:1.6;background:var(--bg);
+  border-bottom:1px solid var(--rule);color:var(--sub)}
+footer{padding:16px 14px 32px;font-size:11.5px;color:var(--faint);line-height:1.8}
+
+/* 埋め込み先が背景を暗色に上書きしてくる場合があるため、
+   モード別に !important で塗り直す。html / body / 内側の器の3層すべてに当てる。 */
+html[data-mode="day"]{color-scheme:light}
+html[data-mode="day"],
+html[data-mode="day"] body,
+html[data-mode="day"] .wrap{background:#fff !important;color:#111}
+html[data-mode="night"]{color-scheme:dark}
+html[data-mode="night"],
+html[data-mode="night"] body,
+html[data-mode="night"] .wrap{background:#000 !important;color:#f2f2f2}
+.wrap{min-height:100dvh}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="bar">
+    <div class="brand">世界の株価</div>
+    <div class="time num" id="stamp">--:--:--</div>
+    <div class="tools">
+      <button id="btnMode">夜</button>
+      <button id="btnColor">日本式</button>
+      <button id="btnAuto" aria-pressed="true">自動</button>
+      <button id="btnReload">更新</button>
+    </div>
+  </div>
+</header>
+
+<div class="note" id="note" hidden></div>
+<div class="strip" id="strip"></div>
+<nav id="tabs" role="tablist"></nav>
+<div class="sortbar">
+  <span>並べ替え</span>
+  <button data-sort="none" aria-pressed="true">既定</button>
+  <button data-sort="pct">騰落率</button>
+  <button data-sort="name">名前</button>
+  <a class="toollink" href="./keisan.html">受渡計算 ›</a>
+</div>
+
+<main id="rows"></main>
+
+<section class="detail" id="detail" hidden>
+  <div class="dhead">
+    <div class="dname" id="dname"></div>
+    <div class="dprice num" id="dprice"></div>
+    <div class="ddiff num" id="ddiff"></div>
+    <div class="dmeta num" id="dmeta"></div>
+  </div>
+  <canvas id="big"></canvas>
+  <div class="stats" id="dstats"></div>
+</section>
+
+<footer>
+  取得元：<span id="srcname">内蔵デモデータ</span>／基準日時：<span id="asof">—</span><br>
+  表示値は参考情報であり、正確性・即時性を保証するものではありません。投資判断は各自の責任で行ってください。
+</footer>
+
+</div>
+
+<script>
+"use strict";
+
+/* 1. 銘柄定義　★は表記の実在確認が未了（要確認） */
+const UNIVERSE = [
+  ["主要","日経平均","^N225",2],
+  ["主要","TOPIX","^TPX",2],            // ★
+  ["主要","日経先物 円建","NIY=F",0],
+  ["主要","S&P500先物","ES=F",2],
+  ["主要","ナスダック100先物","NQ=F",2],
+  ["主要","NYダウ","^DJI",2],
+  ["主要","ナスダック","^IXIC",2],
+  ["主要","S&P500","^GSPC",2],
+  ["主要","SOX指数","^SOX",2],
+  ["主要","日経平均VI","^NKVI",2],
+  ["主要","NT倍率","@NT",3],
+  ["主要","ドル円","JPY=X",3],
+
+  ["先物","日経先物 円建（CME）","NIY=F",0],
+  ["先物","日経先物 ドル建（CME）","NKD=F",0],
+  ["先物","日経先物 大阪（夜間）","^N225",2],   // ★要確認：大阪夜間の別シンボル要調査
+  ["先物","ダウ先物","YM=F",0],
+  ["先物","S&P500先物","ES=F",2],
+  ["先物","ナスダック100先物","NQ=F",2],
+  ["先物","ラッセル2000先物","RTY=F",2],       // ★要確認
+  ["先物","VIX先物","VX=F",2],                 // ★要確認
+  ["先物","米10年債先物","ZN=F",3],
+  ["先物","ドル指数先物","DX=F",3],            // ★要確認
+  ["先物","NY金先物","GC=F",1],
+  ["先物","WTI原油先物","CL=F",2],
+
+  ["日本","日経平均","^N225",2],
+  ["日本","TOPIX","^TPX",2],            // ★
+  ["日本","日経平均VI","^NKVI",2],
+  ["日本","日経先物 円建","NIY=F",0],
+  ["日本","日経先物 ドル建","NKD=F",0],
+  ["日本","NT倍率","@NT",3],
+  ["日本","東証REIT指数","^TREIT",2],
+  ["日本","ドル円","JPY=X",3],
+
+  ["米国","NYダウ","^DJI",2],
+  ["米国","ナスダック","^IXIC",2],
+  ["米国","S&P500","^GSPC",2],
+  ["米国","ラッセル2000","^RUT",2],
+  ["米国","SOX指数","^SOX",2],
+  ["米国","VIX指数","^VIX",2],
+  ["米国","米10年債利回り","^TNX",3],
+  ["米国","ダウ先物","YM=F",0],
+  ["米国","S&P500先物","ES=F",2],
+  ["米国","ナスダック100先物","NQ=F",2],
+
+  ["欧亜","英FTSE100","^FTSE",2],
+  ["欧亜","独DAX","^GDAXI",2],
+  ["欧亜","仏CAC40","^FCHI",2],
+  ["欧亜","ユーロSTOXX50","^STOXX50E",2],
+  ["欧亜","香港ハンセン","^HSI",2],
+  ["欧亜","上海総合","000001.SS",2],
+  ["欧亜","韓国KOSPI","^KS11",2],
+  ["欧亜","台湾加権","^TWII",2],
+  ["欧亜","印Nifty50","^NSEI",2],
+  ["欧亜","豪ASX200","^AXJO",2],
+
+  ["為替・商品","ドル円","JPY=X",3],
+  ["為替・商品","ユーロ円","EURJPY=X",3],
+  ["為替・商品","ユーロドル","EURUSD=X",4],
+  ["為替・商品","ポンド円","GBPJPY=X",3],
+  ["為替・商品","豪ドル円","AUDJPY=X",3],
+  ["為替・商品","NY金","GC=F",1],
+  ["為替・商品","NY銀","SI=F",3],
+  ["為替・商品","WTI原油","CL=F",2],
+  ["為替・商品","ビットコイン円","BTC-JPY",0],
+].map(([group,name,symbol,dp])=>({group,name,symbol,dp}));
+
+const GROUPS = [...new Set(UNIVERSE.map(u=>u.group))];
+const STRIP_SYMS = ["^N225","NIY=F","ES=F","NQ=F","YM=F","^DJI","^IXIC","^GSPC","^SOX","JPY=X","BTC-JPY"];
+
+/* 2. データ層 */
+const DATA_URL = "./data.json", REFRESH_MS = 60000;
+let QUOTES = {}, RESOLVED = {}, DEMO = true, SOURCE = "内蔵デモデータ", AS_OF = null;
+
+async function loadData(){
+  try{
+    const r = await fetch(DATA_URL + "?t=" + Date.now(), {cache:"no-store"});
+    if(!r.ok) throw new Error("HTTP " + r.status);
+    const j = await r.json();
+    if(!j || !j.quotes) throw new Error("形式が不正");
+    QUOTES = j.quotes; DEMO = false; RESOLVED = j.resolved || {};
+    SOURCE = j.source || DATA_URL; AS_OF = j.asOf || null;
+    computeDerived();
+    setNote(null);
+  }catch(e){
+    if(Object.keys(QUOTES).length && !DEMO){
+      setNote("最新データを取得できませんでした。前回取得分を表示しています（" + e.message + "）");
+      computeDerived();
+      return;
+    }
+    QUOTES = makeDemo(); DEMO = true; computeDerived();
+    SOURCE = "内蔵デモデータ"; AS_OF = new Date().toISOString();
+    setNote("data.json が読めないため、乱数で生成した架空値を表示しています。");
+  }
+}
+function setNote(msg){
+  const b = document.getElementById("note");
+  if(!msg){ b.hidden = true; return; }
+  b.hidden = false; b.textContent = msg;
+}
+
+/* デモ表示用の基準値。data.json が読めたときは全て上書きされる。
+   日経平均・TOPIX・ドル円・ユーロ円・ユーロドルは 2026/8/21 の実績値、
+   それ以外は同時期のおおよその水準（目安）。 */
+const BASE = {"^N225":66016.36,"^TPX":4067.29,"NIY=F":65900,"NKD=F":65880,
+ "^NKVI":26.5,"^TREIT":1810,
+ "^DJI":52700,"^IXIC":26100,"^GSPC":7480,"^RUT":2900,"^SOX":6900,"^VIX":18.5,"^TNX":4.71,
+ "YM=F":52750,"ES=F":7485,"NQ=F":29300,"RTY=F":2905,"VX=F":19.2,"ZN=F":108.5,"DX=F":101.5,
+ "^FTSE":10330,"^GDAXI":24900,"^FCHI":8200,"^STOXX50E":6080,
+ "^HSI":25600,"000001.SS":4120,"^KS11":7480,"^TWII":24500,"^NSEI":26800,"^AXJO":8750,
+ "JPY=X":159.05,"EURJPY=X":185.75,"EURUSD=X":1.1678,"GBPJPY=X":213.0,"AUDJPY=X":106.5,
+ "GC=F":4555,"SI=F":58.0,"CL=F":95.0,"BTC-JPY":12300000};
+
+function makeDemo(){
+  const out = {};
+  for(const u of UNIVERSE){
+    if(out[u.symbol] || u.symbol.startsWith("@")) continue;
+    const base = BASE[u.symbol] || 1000, vol = base*0.004, series = [];
+    let v = base*(1+(Math.random()-0.5)*0.006);
+    for(let i=0;i<120;i++){ v += (Math.random()-0.5)*vol*0.35; series.push(v); }
+    out[u.symbol] = {price:series[series.length-1], prev:base,
+      high:Math.max(...series), low:Math.min(...series), open:series[0],
+      series, time:new Date().toISOString()};
+  }
+  return out;
+}
+
+
+/* 派生指標：取得元に存在しないので、他の2本から合成する。
+   倍率は A ÷ B。前日比も前日終値どうしの比から求める。
+   系列は点数が食い違うことがあるため、短い方に合わせて等間隔で取り直す。 */
+
+function resample(arr,n){
+  if(!arr || arr.length<2) return null;
+  if(arr.length===n) return arr;
+  return Array.from({length:n},(_,i)=>arr[Math.round(i*(arr.length-1)/(n-1))]);
+}
+
+function pairSeries(A,B){
+  if(!(A.series && B.series && A.series.length>1 && B.series.length>1)) return null;
+  const n = Math.min(A.series.length, B.series.length);
+  return [resample(A.series,n), resample(B.series,n)];
+}
+
+function wrap(price, prev, series, A, B){
+  if(price==null || !isFinite(price)) return null;
+  const s = series && series.length ? series : null;
+  return {price, prev,
+    high: s ? Math.max(...s) : null, low: s ? Math.min(...s) : null,
+    open: s ? s[0] : null, series: s, time: (A&&A.time) || (B&&B.time)};
+}
+
+function ratioQuote(ka,kb){
+  const A = QUOTES[ka], B = QUOTES[kb];
+  if(!A || !B || A.price==null || B.price==null || !B.price) return null;
+  const pr = pairSeries(A,B);
+  const series = pr ? pr[0].map((v,i)=> pr[1][i] ? v/pr[1][i] : null)
+                        .filter(v=>v!=null && isFinite(v)) : null;
+  const prev = (A.prev!=null && B.prev) ? A.prev/B.prev : null;
+  return wrap(A.price/B.price, prev, series, A, B);
+}
+
+
+const DERIVED = [
+  {symbol:"@NT", build:()=>ratioQuote("^N225","^TPX")},
+];
+
+function computeDerived(){
+  for(const d of DERIVED){
+    const q = d.build();
+    if(q) QUOTES[d.symbol] = q; else delete QUOTES[d.symbol];
+  }
+}
+
+function computeDerived(){
+  for(const d of DERIVED){
+    const A = QUOTES[d.a], B = QUOTES[d.b];
+    if(!A || !B || A.price==null || B.price==null){ delete QUOTES[d.symbol]; continue; }
+    let series = null;
+    if(A.series && B.series && A.series.length>1 && B.series.length>1){
+      const n = Math.min(A.series.length, B.series.length);
+      const sa = resample(A.series,n), sb = resample(B.series,n);
+      series = sa.map((v,i)=>d.op(v,sb[i])).filter(v=>v!=null && isFinite(v));
+    }
+    const price = d.op(A.price,B.price);
+    const prev  = (A.prev!=null && B.prev!=null) ? d.op(A.prev,B.prev) : null;
+    QUOTES[d.symbol] = {
+      price, prev,
+      high: series ? Math.max(...series) : null,
+      low:  series ? Math.min(...series) : null,
+      open: series ? series[0] : null,
+      series, time: A.time || B.time
+    };
+  }
+}
+
+/* 3. 表示ユーティリティ */
+let JP_COLOR = true;
+const cssVar = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+function colorOf(d){
+  if(!d) return cssVar("--flat");
+  if(JP_COLOR) return d>0 ? cssVar("--up") : cssVar("--dn");
+  return d>0 ? "#12a05a" : cssVar("--up");
+}
+const nf = (v,dp)=> v==null||!isFinite(v) ? "—" :
+  v.toLocaleString("ja-JP",{minimumFractionDigits:dp,maximumFractionDigits:dp});
+const sgn = (v,dp)=> v==null||!isFinite(v) ? "—" : (v>0?"+":"") + nf(v,dp);
+const diffOf = q => (!q||q.price==null||q.prev==null) ? {d:null,p:null}
+  : {d:q.price-q.prev, p:q.prev ? (q.price-q.prev)/q.prev*100 : null};
+
+function drawSpark(cv,q){
+  const dpr = window.devicePixelRatio||1, w = cv.clientWidth||56, h = cv.clientHeight||26;
+  cv.width = w*dpr; cv.height = h*dpr;
+  const c = cv.getContext("2d"); c.scale(dpr,dpr); c.clearRect(0,0,w,h);
+  const s = q && q.series && q.series.length>1 ? q.series : null;
+  if(!s) return;
+  const mn = Math.min(...s,q.prev??Infinity), mx = Math.max(...s,q.prev??-Infinity);
+  const rng = (mx-mn)||1;
+  const X = i => i/(s.length-1)*(w-1)+.5, Y = v => h-2-(v-mn)/rng*(h-4);
+  if(q.prev!=null){
+    c.strokeStyle = cssVar("--rule2"); c.lineWidth = 1;
+    c.beginPath(); c.moveTo(0,Y(q.prev)+.5); c.lineTo(w,Y(q.prev)+.5); c.stroke();
+  }
+  c.strokeStyle = colorOf(diffOf(q).d); c.lineWidth = 1.6; c.lineJoin = "round";
+  c.beginPath(); s.forEach((v,i)=> i ? c.lineTo(X(i),Y(v)) : c.moveTo(X(i),Y(v)));
+  c.stroke();
+}
+
+/* 4. 描画 */
+let activeGroup = GROUPS[0], activeSym = null, sortKey = "none";
+
+function renderTabs(){
+  const nav = document.getElementById("tabs"); nav.innerHTML = "";
+  GROUPS.forEach(g=>{
+    const b = document.createElement("button");
+    b.textContent = g; b.setAttribute("role","tab");
+    b.setAttribute("aria-selected", String(g===activeGroup));
+    b.onclick = ()=>{ activeGroup = g; renderTabs(); renderRows(); };
+    nav.appendChild(b);
+  });
+}
+
+function renderStrip(){
+  const el = document.getElementById("strip"); el.innerHTML = "";
+  STRIP_SYMS.forEach(sym=>{
+    const u = UNIVERSE.find(x=>x.symbol===sym); if(!u) return;
+    const q = QUOTES[sym]; const {d,p} = diffOf(q);
+    const div = document.createElement("div"); div.className = "chip";
+    div.innerHTML = `<div class="n">${u.name}</div>
+      <div class="p num" style="color:${colorOf(d)}">${nf(q&&q.price,u.dp)}</div>
+      <div class="d num" style="color:${colorOf(d)}">${p==null?"—":sgn(p,2)+"%"}</div>`;
+    div.onclick = ()=> select(sym);
+    el.appendChild(div);
+  });
+}
+
+function renderRows(){
+  const main = document.getElementById("rows"); main.innerHTML = "";
+  let list = UNIVERSE.filter(u=>u.group===activeGroup);
+  if(sortKey==="pct"){
+    list = [...list].sort((a,b)=>(diffOf(QUOTES[b.symbol]).p??-1e9)-(diffOf(QUOTES[a.symbol]).p??-1e9));
+  }else if(sortKey==="name"){
+    list = [...list].sort((a,b)=>a.name.localeCompare(b.name,"ja"));
+  }
+  list.forEach(u=>{
+    const q = QUOTES[u.symbol]||{}; const {d,p} = diffOf(q);
+    const el = document.createElement("div");
+    el.className = "row";
+    el.setAttribute("aria-current", String(u.symbol===activeSym));
+    el.innerHTML = `
+      <div class="rname"><b>${u.name}</b><i>${u.symbol}</i></div>
+      <div class="hl num"><u>高 ${nf(q.high,u.dp)}</u><u>安 ${nf(q.low,u.dp)}</u></div>
+      <div class="rspark"><canvas></canvas></div>
+      <div class="rval">
+        <div class="p num" style="color:${colorOf(d)}">${nf(q.price,u.dp)}</div>
+        <div class="d num" style="color:${colorOf(d)}">${sgn(d,u.dp)}　${p==null?"":sgn(p,2)+"%"}</div>
+      </div>`;
+    el.onclick = ()=> select(u.symbol);
+    main.appendChild(el);
+    drawSpark(el.querySelector("canvas"), q);
+  });
+}
+
+function select(sym){
+  activeSym = sym;
+  const u = UNIVERSE.find(x=>x.symbol===sym), q = QUOTES[sym]||{};
+  const {d,p} = diffOf(q);
+  document.getElementById("detail").hidden = false;
+  document.getElementById("dname").textContent = u.name;
+  const dpEl = document.getElementById("dprice");
+  dpEl.textContent = nf(q.price,u.dp); dpEl.style.color = colorOf(d);
+  const dd = document.getElementById("ddiff");
+  dd.textContent = `${sgn(d,u.dp)}　${p==null?"":sgn(p,2)+"%"}`; dd.style.color = colorOf(d);
+  document.getElementById("dmeta").textContent =
+    `${sym}${RESOLVED[sym] && RESOLVED[sym]!==sym ? " → "+RESOLVED[sym] : ""}／${q.time ? new Date(q.time).toLocaleString("ja-JP") : "時刻不明"}`;
+  const cells = [["前日終値",nf(q.prev,u.dp)],["始値",nf(q.open,u.dp)],
+                 ["高値",nf(q.high,u.dp)],["安値",nf(q.low,u.dp)],
+                 ["日中値幅",(q.high!=null&&q.low!=null)?nf(q.high-q.low,u.dp):"—"],
+                 ["出来高",q.volume!=null?nf(q.volume,0):"要確認"]];
+  document.getElementById("dstats").innerHTML =
+    cells.map(([k,v])=>`<div><span>${k}</span><b class="num">${v}</b></div>`).join("");
+  const cl = document.getElementById("calclink");
+  cl.href = (q.price!=null && isFinite(q.price))
+    ? "./keisan.html?price=" + Math.round(q.price) : "./keisan.html";
+  drawBig(q,u);
+  renderRows();
+}
+
+function drawBig(q,u){
+  const cv = document.getElementById("big");
+  const dpr = window.devicePixelRatio||1, w = cv.clientWidth, h = 210;
+  cv.width = w*dpr; cv.height = h*dpr; cv.style.height = h+"px";
+  const c = cv.getContext("2d"); c.scale(dpr,dpr); c.clearRect(0,0,w,h);
+  const s = q.series;
+  if(!s || s.length<2){
+    c.fillStyle = cssVar("--faint"); c.font = "13px sans-serif";
+    c.fillText("日中データがありません",0,24); return;
+  }
+  const pad = {r:62,t:14,b:14};
+  const mn = Math.min(...s,q.prev??Infinity), mx = Math.max(...s,q.prev??-Infinity);
+  const rng = (mx-mn)||1, W = w-pad.r;
+  const X = i => i/(s.length-1)*W, Y = v => pad.t+(1-(v-mn)/rng)*(h-pad.t-pad.b);
+  c.font = "11px " + cssVar("--font").split(",")[0];
+  c.textBaseline = "middle";
+  for(let i=0;i<=4;i++){
+    const v = mn+rng*i/4, y = Math.round(Y(v))+.5;
+    c.strokeStyle = cssVar("--rule"); c.lineWidth = 1;
+    c.beginPath(); c.moveTo(0,y); c.lineTo(W,y); c.stroke();
+    c.fillStyle = cssVar("--faint"); c.fillText(nf(v,u.dp), W+8, y);
+  }
+  const d = diffOf(q).d, col = colorOf(d);
+  if(q.prev!=null){
+    const y = Math.round(Y(q.prev))+.5;
+    c.strokeStyle = cssVar("--rule2"); c.setLineDash([3,3]);
+    c.beginPath(); c.moveTo(0,y); c.lineTo(W,y); c.stroke(); c.setLineDash([]);
+    c.fillStyle = cssVar("--faint"); c.fillText("前日", W+8, y-13);
+  }
+  c.strokeStyle = col; c.lineWidth = 2; c.lineJoin = "round";
+  c.beginPath(); s.forEach((v,i)=> i ? c.lineTo(X(i),Y(v)) : c.moveTo(X(i),Y(v)));
+  c.stroke();
+  c.fillStyle = col;
+  c.beginPath(); c.arc(X(s.length-1), Y(s[s.length-1]), 3, 0, Math.PI*2); c.fill();
+}
+
+/* 5. 更新と操作 */
+let timer = null, auto = true;
+async function refresh(){
+  await loadData();
+  document.getElementById("stamp").textContent =
+    new Date().toLocaleTimeString("ja-JP",{hour12:false});
+  document.getElementById("srcname").textContent = SOURCE;
+  document.getElementById("asof").textContent =
+    AS_OF ? new Date(AS_OF).toLocaleString("ja-JP") : "要確認";
+  renderStrip(); renderRows();
+  if(activeSym) select(activeSym);
+}
+function setAuto(on){
+  auto = on;
+  const b = document.getElementById("btnAuto");
+  b.setAttribute("aria-pressed", String(on));
+  clearInterval(timer);
+  if(on) timer = setInterval(refresh, REFRESH_MS);
+}
+const redraw = ()=>{ renderStrip(); renderRows(); if(activeSym) select(activeSym); };
+
+document.getElementById("btnReload").onclick = refresh;
+document.getElementById("btnAuto").onclick = ()=> setAuto(!auto);
+document.getElementById("btnMode").onclick = e=>{
+  const night = document.documentElement.getAttribute("data-mode")==="night";
+  document.documentElement.setAttribute("data-mode", night?"day":"night");
+  e.currentTarget.textContent = night ? "夜" : "昼";
+  redraw();
+};
+document.getElementById("btnColor").onclick = e=>{
+  JP_COLOR = !JP_COLOR;
+  e.currentTarget.textContent = JP_COLOR ? "日本式" : "欧米式";
+  redraw();
+};
+document.querySelectorAll(".sortbar button").forEach(b=>{
+  b.onclick = ()=>{
+    sortKey = b.dataset.sort;
+    document.querySelectorAll(".sortbar button").forEach(x=>
+      x.setAttribute("aria-pressed", String(x===b)));
+    renderRows();
+  };
+});
+window.addEventListener("resize", redraw);
+document.addEventListener("visibilitychange", ()=>{ if(!document.hidden && auto) refresh(); });
+
+renderTabs(); setAuto(true); refresh();
+</script>
+</body>
+</html>
